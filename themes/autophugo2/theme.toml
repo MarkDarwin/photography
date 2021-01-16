@@ -1,0 +1,17 @@
+name = "AutoPhugo2"
+license = "CCA 3.0 Unported"
+licenselink = "https://github.com/kc0bfv/autophugo/blob/master/LICENSE.md"
+description = "Automatic Image gallery/Photoblog Theme for Hugo with additional sections."
+homepage = "https://github.com/nsoui/autophugo2"
+tags = ["gallery", "photoblog", "responsive", "mobile", "dark", "creative", "images"]
+features = ["albums", "contact form", "breadcrumbs"]
+min_version = "0.1.0"
+
+authors = [
+    {name = "Nizar Souissi", homepage = "https://souissi.eu"}
+]
+
+# If porting an existing theme
+[original]
+  name = "AutoPhugo"
+  homepage = "https://github.com/kc0bfv/autophugo/"

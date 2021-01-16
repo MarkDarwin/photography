@@ -1,0 +1,201 @@
+{{ define "title" }}
+{{ .Title }} - {{ .Site.Title }}
+{{ end }}
+{{ define "main" }}
+
+    {{- /* Things in site config */}}
+    {{- $thumb_height := default 250 ($.Param "thumb_height") }}
+    {{- $small_width := default 960 ($.Param "small_width") }}
+    {{- $small_height := default 720 ($.Param "small_width") }}
+    {{- $full_width := default 960 ($.Param "full_width") }}
+    {{- $full_height := default 720 ($.Param "full_width") }}
+    
+    {{- $thumb_quality := default 50 ($.Param "thumb_quality") }}
+    {{- $small_quality := default 90 ($.Param "small_quality") }}
+    {{- $full_quality := default 90 ($.Param "full_quality") }}
+
+    {{- $thumb_size := printf "x%d q%d" $thumb_height $thumb_quality }}
+    {{- $small_size := printf "%dx q%d" $small_width $small_quality }}
+    {{- $full_size := printf "%dx%d q%d" $full_width $full_height $full_quality }}
+
+    {{- /* Get and reorder the list of images */}}
+    {{- $imgglob := printf "*%s" (path.Join .File.Dir "**") }}
+    {{- $imageresources := where (resources.Match $imgglob) "ResourceType" "image" }}
+    {{- $scratch := newScratch }}
+    {{- $scratch.Set "Title" .Title }}
+    {{- $scratch.Set "url" .Permalink }}
+    {{- $images := $imageresources }}
+    {{- $nbImages := len $images }}
+
+
+    {{- /* Reize images and capture their urls */}}
+    {{- range $index, $image := $images }}
+        {{- with $image -}}
+            {{- $img := . }}
+            {{- $img_dat := newScratch }}
+            {{- $img_dat.Set "alt" "" }}
+            {{- $img_dat.Set "phototitle" ($scratch.Get "Title") }}
+            {{- $img_dat.Set "description" "" }}
+            {{- $img_path := .Name }}
+            {{- with $.Params.resources }}
+                {{- range first 1 (where . "src" $img_path) }}
+                    {{- if isset . "alt" }}
+                        {{ $img_dat.Set "alt" .alt }}
+                    {{ end }}
+                    {{- if and (isset . "phototitle") ( gt (len (trim .phototitle " ")) 0)  }}
+                        {{ $img_dat.Set "phototitle" .phototitle }}
+                    {{ end }}
+                    {{- if isset . "description" }}{{ $img_dat.Set "description" .description }}{{ end }}
+                {{- end }}
+            {{- end }}
+            {{- $thumb := .Resize $thumb_size }}
+            {{- $full := .Fit $full_size }}
+            {{- $small := .Resize $small_size }}
+            {{- $img_dat.Set "full" $full.RelPermalink }}
+            {{- $img_dat.Set "small" $small.RelPermalink }}
+            {{- $img_dat.Set "thumb" $thumb.RelPermalink }}
+            {{- $img_dat.Set "thumb_width" $thumb.Width  }}
+            {{- $img_dat.Set "small_width" $small.Width  }}
+            {{- $img_dat.Set "full_width" $full.Width  }}
+            {{- $img_dat.Set "full_height" $full.Height  }}
+            {{- $img_dat.Set "exif" (dict "copyright" "souissi.eu" ) }}
+            {{ if not $.Site.Params.no_exif }}
+                {{ if in (slice "jpg" "jpeg" "tiff" "tif") .MediaType.SubType }}
+                    {{ warnf "Extracting EXIFs from %q" .Name }}
+                    {{- $img_dat.Set "exif" .Exif }}
+                    {{ with .Exif }}
+                        {{ with .Tags }}
+                            {{ with .ImageDescription }}
+                                {{ if  gt ( len ( trim . " " )) 0  }}
+                                    {{ $img_dat.Set "phototitle" . }}
+                                    {{ warnf "Found the image title  %q" . }}
+                                {{- end }}
+                            {{- end }}
+                        {{- end }}
+                    {{- end }}
+                {{- end }}
+            {{ end }}            
+            {{- $scratch.Add "images" (slice $img_dat) }}
+        {{ end }}
+    {{ end }}
+
+
+    <div id="main">
+        <input type="text" value="{{ .RelPermalink }}" id="urlInput">
+        <div id="ltb-container">
+            <div id="album-header">
+                <h1>{{- .Title}}</h1>
+                {{ with .Params.Get "quote"}}
+                    <blockquote author={{ .author }}>{{ .text }}</blockquote>
+                {{ end }}            
+            </div>
+            <div class="container" id="ltb-gallery">
+                <!-- Images used to open the lightbox -->
+                <div class="row">
+                    {{- range $index, $image := $scratch.Get "images" }}
+                        {{- with $image -}}
+                            <div class="column card" id="thumb{{ add  $index 1 }}">
+                                <img class="hover-shadow lazy" src="/img/placeholder.png" data-src='{{ .Get "thumb"  }}' data-sizes="auto" 
+                                data-srcset='{{ .Get "thumb" }} {{ .Get "thumb_width" }}w , {{ .Get "small" }} {{ .Get "small_width" }}w'
+                                onclick="openModal(); currentSlide({{ add  $index 1 }});"  />
+                            </div>
+                        {{- end }}
+                    {{- end }}
+                </div>
+            </div>
+        </div>
+        <!-- The Modal/Lightbox --> 
+        <div id="myModal" class="modal">
+            <div id="miniatures">
+                    <a class="overlay middle left icon fabutton" onclick="document.getElementById('miniaturestable').scrollLeft -= 400;"><i class="fa fa-arrow-left" aria-hidden="true"></i></a>
+                <div class="table" id="miniaturestable" >
+                    {{- range $index, $image := $scratch.Get "images" }}
+                        {{- with $image -}}
+                            <div class="column item card">
+                                <img class="demo contain lazy" src='/img/placeholder.png' data-src='{{ .Get "thumb" }}' data-srcset='{{ .Get "thumb" }}' onclick="currentSlide({{ add  $index 1 }});" alt='{{ .Get "phototitle" }} ({{ add  $index 1}} / {{ $nbImages }})'>
+                            </div>
+                        {{ end }}
+                    {{ end }}
+                </div>
+                <a class="overlay middle right icon fabutton" onclick="document.getElementById('miniaturestable').scrollLeft += 400;"><i class="fa fa-arrow-right" aria-hidden="true"></i></a>
+            </div>
+            <div class="modal-content">
+                {{- range $index, $image := $scratch.Get "images" }}
+                    {{- with $image -}}
+                        {{ $img := . }}
+                        <div class="mySlides">
+                            <div class="img-container">
+                                <img src='/img/placeholder.png' class="lazy" data-src='{{ .Get "full" }}' data-srcset='{{ .Get "thumb" }} {{ .Get "thumb_width" }}w, {{ .Get "small" }} {{ .Get "small_width" }}w, {{ .Get "full" }} {{ .Get "full_width" }}w'  />
+                                {{/*  <div class="caption-container overlay center top">
+                                    <!-- Next/previous controls -->
+                                    <h3 id="caption"></h3>
+                                </div>     */}}
+                                <div class="overlay top right">
+                                    <div class="fabutton cursor" onclick="closeModal()"><i class="fa fa-times-circle"></i></div>
+                                </div>
+                                <div class="overlay middle left">
+                                    <!-- Next/previous controls -->
+                                    <a class="icon fabutton" onclick="plusSlides(-1)"><i class="fa fa-arrow-left" aria-hidden="true"></i></a>
+                                </div>
+                                <div class="overlay middle right">
+                                    <a class="icon fabutton" onclick="plusSlides(1)"><i class="fa fa-arrow-right" aria-hidden="true"></i></a>
+                                </div>
+                                <div class="overlay bottom right">
+                                    {{ $url := $scratch.Get "url" }}
+                                    <a href="#"  onclick="copyToClipboard('{{ $url }}?pic={{ add $index 1 }}');"  class="icon fabutton" title="Click to copy a sharable link to this picture">
+                                      <i class="fa fa-link"></i>
+                                    </a>
+                                    <a href='{{ .Get "full" }}' class="icon fabutton" target="_blank" title="Download in full resolution">
+                                        <i class="fa fa-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                            {{ if not $.Site.Params.no_exif }}
+                                <div class="exif">
+                                    {{- with .Get "exif" }}
+                                        <!-- {{  printf "%#v" . }} -->
+                                        {{- with .Tags -}}
+                                            {{ $tags := . }}
+                                            {{ with .ImageDescription }}<div class="title"><h3>{{ .}}</h3></div>{{ end }}
+                                            <!-- {{ with .UserComment }}<p>{{ . }}</p>{{ end }} -->
+                                            <ul>
+                                                {{- if isset . "Nikon3" -}}
+                                                    {{- with .Nikon3}}<li><i class="fas fa-bullseye fa-fw"></i> {{ .Lens }}</li>{{ end }}
+                                                {{ end }}
+                                                <li><i class="fa fa-camera fa-fw"></i> 
+                                                    {{- if isset . "Model" }}
+                                                        {{ .Model }}
+                                                    {{- else }}
+                                                        Composite Photo
+                                                    {{ end }}
+                                                </li>
+                                                {{- with .LensModel }}
+                                                    <li><i class="fa fa-wpexplorer fa-fw"></i> 
+                                                    {{- if (hasPrefix (lower $tags.LensModel) (lower $tags.Make)) }}
+                                                        {{ substr $tags.LensModel (len $tags.Make)}}
+                                                    {{- else if (hasPrefix (lower $tags.LensModel) (lower $tags.Model)) }}
+                                                        {{ substr $tags.LensModel (len $tags.Model)}}
+                                                    {{- else }}
+                                                        {{ . }}
+                                                    {{ end }}
+                                                    </li>
+                                                {{- end }}
+                                                
+                                                {{- with .FocalLength }}<li><i class="fa fa-search-plus fa-fw"></i>{{ . }}{{- with $tags.FocalLengthIn35mmFilm }}{{ if ne . $tags.FocalLength }} ({{ . }}){{ end }}{{ end }}mm</li>{{ end }}
+                                                {{- with .ExposureTime }}<li><i class="fa fa-hourglass-half fa-fw"></i>{{ . }}s</li>{{ end }}
+                                                {{- with .FNumber }}<li><i class="fa fa-empire fa-fw"></i>f/{{ . }}</li>{{ end }}
+                                                {{- with .ISOSpeedRatings }}<li><i class="fa fa-film fa-fw"></i></i>ISO {{ . }}</li>{{ end }}
+                                                {{- with .DateTimeOriginal }}<li><i class="fa fa-calendar fa-fw"></i>{{ .Format "January 2006" }}</li>{{ end }}
+                                                {{- with .Copyright }}<li><i class="fa fa-copyright fa-fw"></i>{{ . }}</li>{{ end }}
+                                            {{- end -}}
+                                        </ul>   
+                                    {{- end }}  
+                                </div>
+                            {{- end }}
+                        </div>
+                    {{- end }}
+                {{- end }}
+            </div>
+        </div>
+    </div>
+{{ end }}
