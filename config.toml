@@ -1,5 +1,5 @@
 # Settings
-baseurl = "http://example.org/"
+baseurl = "http://marksphotos.netlify.app"
 languageCode = "en-us"
 title = "Marks photos"
 theme = "autophugo2"
